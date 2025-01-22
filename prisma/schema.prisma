@@ -1,0 +1,276 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  
+}
+
+model User {
+  user_id              String            @id @default(uuid())
+  username             String            @unique
+  email                String            @unique
+  password_hash        String
+  role                 String            @default("attendee")
+  first_name           String
+  last_name            String
+  phone_number         String
+  profile_picture_url  String?
+  is_deleted           Boolean           @default(false)
+  created_at           DateTime          @default(now())
+  updated_at           DateTime          @updatedAt
+  events               Event[]           @relation("CreatedEvents")
+  tickets              Ticket[]
+  event_attendees      EventAttendee[]
+  notifications        Notification[]
+  event_approvals      EventApproval[]   @relation("ApprovedEvents")
+  reports              Report[]          @relation("GeneratedReports")
+  user_profile         UserProfile?
+  booking_history      BookingHistory[]
+  passwordResetTokens  PasswordResetToken[]
+  manager_requests     ManagerRequest[]
+  sent_messages        Message[]         @relation("SentMessages")
+  chat_participants    Participant[]
+}
+
+model Event {
+  event_id             String            @id @default(uuid())
+  title                String
+  description          String
+  date                 DateTime
+  time                 DateTime
+  location             String
+  images               String?
+  created_by           String
+  created_at           DateTime          @default(now())
+  updated_at           DateTime          @updatedAt
+  capacity             Int
+  available_slots      Int               @default(0)
+  max_group_size       Int?
+  ticket_price         Float             @default(0)
+  tickets              Ticket[]
+  event_attendees      EventAttendee[]
+  status               String            @default("Pending")
+  notifications        Notification[]
+  event_statistics     EventStatistic?
+  booking_history      BookingHistory[]
+  event_approvals      EventApproval[]   @relation("EventApprovals")
+  is_deleted           Boolean           @default(false)
+  createdBy            User              @relation("CreatedEvents", fields: [created_by], references: [user_id])
+  chat_rooms           ChatRoom[]
+}
+
+model Ticket {
+  ticket_id            String            @id @default(uuid())
+  event_id             String
+  user_id              String
+  image                String?
+  booking_status       String            @default("pending")
+  booking_date         DateTime          @default(now())
+  price                Float
+  ticket_type          String            @default("single")
+  group_size           Int?
+  is_deleted           Boolean           @default(false)
+  event                Event             @relation(fields: [event_id], references: [event_id], onUpdate: NoAction, onDelete: NoAction)
+  user                 User              @relation(fields: [user_id], references: [user_id], onUpdate: NoAction, onDelete: NoAction)
+  event_attendees      EventAttendee[]
+  booking_history      BookingHistory[]
+
+  @@index([event_id])
+  @@index([user_id])
+}
+
+
+model EventAttendee {
+  attendee_id          String            @id @default(uuid())
+  event_id             String
+  user_id              String
+  booking_status       String            @default("confirmed")
+  booking_date         DateTime          @default(now())
+  ticket_id            String
+  is_deleted           Boolean           @default(false)
+  event                Event             @relation(fields: [event_id], references: [event_id], onUpdate: NoAction, onDelete: NoAction)
+  user                 User              @relation(fields: [user_id], references: [user_id], onUpdate: NoAction, onDelete: NoAction)
+  ticket               Ticket            @relation(fields: [ticket_id], references: [ticket_id], onUpdate: NoAction, onDelete: NoAction)
+
+  @@index([event_id])
+  @@index([user_id])
+  @@index([ticket_id])
+}
+
+model Notification {
+  notification_id      String            @id @default(uuid())
+  recipient_id         String
+  event_id             String?
+  message              String
+  sent_at              DateTime          @default(now())
+  notification_type    String            @default("email")
+  is_deleted           Boolean           @default(false)
+  recipient            User              @relation(fields: [recipient_id], references: [user_id], onUpdate: NoAction, onDelete: NoAction)
+  event                Event?            @relation(fields: [event_id], references: [event_id], onUpdate: NoAction, onDelete: NoAction)
+
+  @@index([recipient_id])
+  @@index([event_id])
+}
+
+model UserRole {
+  role_id              String            @id @default(uuid())
+  role_name            String            @unique
+  description          String
+  permissions          Permission[]
+
+  @@index([role_name])
+}
+
+model EventStatistic {
+  statistic_id         String            @id @default(uuid())
+  event_id             String            @unique
+  total_attendees      Int
+  total_revenue        Float
+  created_at           DateTime          @default(now())
+  updated_at           DateTime          @updatedAt
+  is_deleted           Boolean           @default(false)
+  event                Event             @relation(fields: [event_id], references: [event_id])
+
+  @@index([event_id])
+}
+
+model UserProfile {
+  user_id              String            @id @default(uuid())
+  first_name           String
+  last_name            String
+  email                String
+  phone_number         String
+  profile_picture_url  String?
+  created_at           DateTime          @default(now())
+  updated_at           DateTime          @default(now())
+  is_deleted           Boolean           @default(false)
+  user                 User              @relation(fields: [user_id], references: [user_id])
+
+  @@index([user_id])
+}
+
+model BookingHistory {
+  history_id           String            @id @default(uuid())
+  user_id              String
+  event_id             String
+  ticket_id            String
+  booking_date         DateTime          @default(now())
+  status               String            @default("booked")
+  is_deleted           Boolean           @default(false)
+  user                 User              @relation(fields: [user_id], references: [user_id], onUpdate: NoAction, onDelete: NoAction)
+  event                Event             @relation(fields: [event_id], references: [event_id], onUpdate: NoAction, onDelete: NoAction)
+  ticket               Ticket            @relation(fields: [ticket_id], references: [ticket_id], onUpdate: NoAction, onDelete: NoAction)
+
+  @@index([user_id])
+  @@index([event_id])
+  @@index([ticket_id])
+}
+
+model Permission {
+  permission_id        String            @id @default(uuid())
+  role_id              String
+  permission_name      String
+  description          String
+  is_deleted           Boolean           @default(false)
+  role                 UserRole          @relation(fields: [role_id], references: [role_id])
+
+  @@index([role_id])
+}
+
+model EventApproval {
+  approval_id          String            @id @default(uuid())
+  event_id             String
+  approved_by          String
+  approval_status      String            @default("pending")
+  approval_date        DateTime          @default(now())
+  is_deleted           Boolean           @default(false)
+  event                Event             @relation("EventApprovals", fields: [event_id], references: [event_id], onUpdate: NoAction, onDelete: NoAction)
+  approver             User              @relation("ApprovedEvents", fields: [approved_by], references: [user_id], onUpdate: NoAction, onDelete: NoAction)
+
+  @@index([event_id])
+  @@index([approved_by])
+}
+
+model Report {
+  report_id            String            @id @default(uuid())
+  generated_by         String
+  report_type          String
+  report_data          String
+  created_at           DateTime          @default(now())
+  is_deleted           Boolean           @default(false)
+  generator            User              @relation("GeneratedReports", fields: [generated_by], references: [user_id], onUpdate: NoAction, onDelete: NoAction)
+
+  @@index([generated_by])
+}
+
+model PasswordResetToken {
+  id          String    @id @default(uuid())
+  user_id     String
+  user        User      @relation(fields: [user_id], references: [user_id])
+  reset_code  String    
+  is_valid    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  expires_at  DateTime
+
+  @@index([user_id])
+}
+
+model ManagerRequest {
+  request_id   String    @id @default(uuid())
+  user_id      String
+  status       String    @default("pending")
+  requested_at DateTime  @default(now())
+  approved_at  DateTime?
+  rejected_at  DateTime?
+
+  user         User      @relation(fields: [user_id], references: [user_id])
+
+  @@index([user_id])
+}
+
+model ChatRoom {
+  chat_room_id String    @id @default(uuid())
+  name         String?
+  created_at   DateTime  @default(now())
+  updated_at   DateTime  @updatedAt
+  messages     Message[]
+  participants Participant[]
+  event_id     String?
+  event        Event?    @relation(fields: [event_id], references: [event_id])
+
+  @@index([event_id])
+}
+
+model Message {
+  message_id   String   @id @default(uuid())
+  chat_room_id String
+  sender_id    String
+  content      String
+  created_at   DateTime @default(now())
+  chatRoom     ChatRoom @relation(fields: [chat_room_id], references: [chat_room_id], onUpdate: NoAction, onDelete: NoAction)
+  sender       User     @relation("SentMessages", fields: [sender_id], references: [user_id], onUpdate: NoAction, onDelete: NoAction)
+
+  @@index([chat_room_id])
+  @@index([sender_id])
+}
+
+model Participant {
+  participant_id String  @id @default(uuid())
+  chat_room_id   String
+  user_id        String
+  joined_at      DateTime @default(now())
+  chatRoom       ChatRoom @relation(fields: [chat_room_id], references: [chat_room_id], onUpdate: NoAction, onDelete: NoAction)
+  user           User     @relation(fields: [user_id], references: [user_id], onUpdate: NoAction, onDelete: NoAction)
+
+  @@index([chat_room_id])
+  @@index([user_id])
+}
